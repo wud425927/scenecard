@@ -56,9 +56,14 @@ const els = {
   exploredLabel: document.getElementById('explored-label'),
   exploredFill: document.getElementById('explored-fill'),
   rateButtons: Array.from(document.querySelectorAll('.seg-btn[data-rate]')),
+  toggleVocabHints: document.getElementById('toggle-vocab-hints'),
   btnInstallPwa: document.getElementById('btn-install-pwa'),
   installGuide: document.getElementById('install-guide'),
   btnReset: document.getElementById('btn-reset'),
+
+  vocabTooltip: document.getElementById('vocab-tooltip'),
+  vocabTooltipWord: document.getElementById('vocab-tooltip-word'),
+  vocabTooltipMeaning: document.getElementById('vocab-tooltip-meaning'),
 
   toast: document.getElementById('toast'),
 };
@@ -71,6 +76,8 @@ let deferredInstallPrompt = null;
 let resetConfirmTimer = null;
 let toastTimer = null;
 let selectedVoice = null;
+let activeVocabEl = null;
+let tooltipCloseTimer = null;
 
 // =========================================================
 // Utilities
@@ -85,16 +92,83 @@ function showToast(message) {
   }, 2000);
 }
 
-function renderHighlightedSentence(container, sentence, highlight) {
+function isAsciiLetter(ch) {
+  return ch ? /[A-Za-z]/.test(ch) : false;
+}
+
+function appendTextWithVocab(container, text, vocabList) {
+  if (!text) return;
+  if (!vocabList || vocabList.length === 0 || state.prefs.showVocabHints === false) {
+    container.appendChild(document.createTextNode(text));
+    return;
+  }
+
+  // Prefer longer words first if two words ever share a prefix
+  const sortedVocab = [...vocabList]
+    .filter((item) => item && item.word && item.meaning)
+    .sort((a, b) => b.word.length - a.word.length);
+
+  let cursor = 0;
+  while (cursor < text.length) {
+    let bestIdx = -1;
+    let bestItem = null;
+
+    for (const item of sortedVocab) {
+      let searchFrom = cursor;
+      while (searchFrom < text.length) {
+        const foundIdx = text.indexOf(item.word, searchFrom);
+        if (foundIdx === -1) break;
+
+        const prevCh = foundIdx > 0 ? text[foundIdx - 1] : '';
+        const nextCh =
+          foundIdx + item.word.length < text.length
+            ? text[foundIdx + item.word.length]
+            : '';
+
+        if (!isAsciiLetter(prevCh) && !isAsciiLetter(nextCh)) {
+          if (bestIdx === -1 || foundIdx < bestIdx) {
+            bestIdx = foundIdx;
+            bestItem = item;
+          }
+          break;
+        }
+        searchFrom = foundIdx + 1;
+      }
+    }
+
+    if (bestIdx === -1 || !bestItem) {
+      container.appendChild(document.createTextNode(text.slice(cursor)));
+      break;
+    }
+
+    if (bestIdx > cursor) {
+      container.appendChild(document.createTextNode(text.slice(cursor, bestIdx)));
+    }
+
+    const span = document.createElement('span');
+    span.className = 'vocab-word';
+    span.setAttribute('role', 'button');
+    span.setAttribute('tabindex', '0');
+    span.setAttribute('aria-label', `${bestItem.word}，點擊查看中文意思`);
+    span.dataset.word = bestItem.word;
+    span.dataset.meaning = bestItem.meaning;
+    span.textContent = bestItem.word;
+    container.appendChild(span);
+
+    cursor = bestIdx + bestItem.word.length;
+  }
+}
+
+function renderHighlightedSentence(container, sentence, highlight, vocabList = null) {
   container.textContent = '';
   if (!highlight) {
-    container.textContent = sentence;
+    appendTextWithVocab(container, sentence, vocabList);
     return;
   }
 
   const idx = sentence.indexOf(highlight);
   if (idx === -1) {
-    container.textContent = sentence;
+    appendTextWithVocab(container, sentence, vocabList);
     return;
   }
 
@@ -102,12 +176,116 @@ function renderHighlightedSentence(container, sentence, highlight) {
   const match = sentence.slice(idx, idx + highlight.length);
   const after = sentence.slice(idx + highlight.length);
 
-  if (before) container.appendChild(document.createTextNode(before));
+  if (before) appendTextWithVocab(container, before, vocabList);
   const mark = document.createElement('mark');
   mark.className = 'phrase-highlight';
   mark.textContent = match;
   container.appendChild(mark);
-  if (after) container.appendChild(document.createTextNode(after));
+  if (after) appendTextWithVocab(container, after, vocabList);
+}
+
+// =========================================================
+// Vocab Peek Tooltip (Boundary-Safe & Single-Hand Friendly)
+// =========================================================
+
+function closeVocabTooltip({ immediate = false } = {}) {
+  clearTimeout(tooltipCloseTimer);
+  if (activeVocabEl) {
+    activeVocabEl.classList.remove('is-active');
+    activeVocabEl = null;
+  }
+  els.vocabTooltip.classList.remove('is-open');
+
+  if (immediate) {
+    els.vocabTooltip.hidden = true;
+    return;
+  }
+
+  tooltipCloseTimer = setTimeout(() => {
+    if (!activeVocabEl) {
+      els.vocabTooltip.hidden = true;
+    }
+  }, 160);
+}
+
+function positionVocabTooltip(anchorEl) {
+  const VIEWPORT_MARGIN = 12;
+  const GAP = 10;
+
+  const anchorRect = anchorEl.getBoundingClientRect();
+  els.vocabTooltip.hidden = false;
+
+  const tipRect = els.vocabTooltip.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  // Prefer directly above the word; fall back below if top space is tight
+  let placement = 'top';
+  let top = anchorRect.top - tipRect.height - GAP;
+  if (top < VIEWPORT_MARGIN) {
+    placement = 'bottom';
+    top = anchorRect.bottom + GAP;
+    if (top + tipRect.height > vh - VIEWPORT_MARGIN) {
+      top = Math.max(VIEWPORT_MARGIN, vh - VIEWPORT_MARGIN - tipRect.height);
+    }
+  }
+
+  // Horizontal clamping so tooltip never overflows phone screen edges
+  const anchorCenterX = anchorRect.left + anchorRect.width / 2;
+  const idealLeft = anchorCenterX - tipRect.width / 2;
+  const maxLeft = Math.max(VIEWPORT_MARGIN, vw - VIEWPORT_MARGIN - tipRect.width);
+  const left = Math.max(VIEWPORT_MARGIN, Math.min(idealLeft, maxLeft));
+
+  // Keep arrow pointed directly at the tapped word even when bubble is clamped
+  const arrowX = Math.max(14, Math.min(tipRect.width - 14, anchorCenterX - left));
+
+  els.vocabTooltip.dataset.placement = placement;
+  els.vocabTooltip.style.left = `${Math.round(left)}px`;
+  els.vocabTooltip.style.top = `${Math.round(top)}px`;
+  els.vocabTooltip.style.setProperty('--arrow-x', `${Math.round(arrowX)}px`);
+}
+
+function toggleVocabTooltip(wordEl) {
+  if (state.prefs.showVocabHints === false) return;
+
+  if (activeVocabEl === wordEl) {
+    closeVocabTooltip();
+    return;
+  }
+
+  clearTimeout(tooltipCloseTimer);
+  if (activeVocabEl) {
+    activeVocabEl.classList.remove('is-active');
+  }
+
+  activeVocabEl = wordEl;
+  wordEl.classList.add('is-active');
+
+  els.vocabTooltipWord.textContent = wordEl.dataset.word || '';
+  els.vocabTooltipMeaning.textContent = wordEl.dataset.meaning || '';
+
+  els.vocabTooltip.classList.remove('is-open');
+  positionVocabTooltip(wordEl);
+
+  requestAnimationFrame(() => {
+    if (activeVocabEl === wordEl) {
+      els.vocabTooltip.classList.add('is-open');
+    }
+  });
+}
+
+function refreshActiveSentence() {
+  const session = state.session;
+  if (!session || session.index >= session.queue.length) return;
+  const current = PHRASE_MAP.get(session.queue[session.index]);
+  if (!current) return;
+  closeVocabTooltip({ immediate: true });
+  renderHighlightedSentence(
+    els.cardSentence,
+    current.sentence,
+    current.highlight,
+    current.vocab || null
+  );
 }
 
 function formatIntervalLabel(days) {
@@ -213,6 +391,7 @@ if ('speechSynthesis' in window) {
 // =========================================================
 
 function setCardRevealed(revealed) {
+  closeVocabTooltip();
   isRevealed = revealed;
   els.activeCard.classList.toggle('is-revealed', revealed);
   els.activeCard.setAttribute('aria-expanded', String(revealed));
@@ -251,6 +430,8 @@ function renderProgress() {
 }
 
 function renderActiveCard({ animateEntrance = false } = {}) {
+  closeVocabTooltip({ immediate: true });
+
   const session = state.session;
   const isDone = !session || session.index >= session.queue.length;
 
@@ -275,7 +456,12 @@ function renderActiveCard({ animateEntrance = false } = {}) {
   // Populate active card
   const cat = CATEGORIES[current.category] || CATEGORIES.narration;
   els.cardCategory.textContent = cat.label;
-  renderHighlightedSentence(els.cardSentence, current.sentence, current.highlight);
+  renderHighlightedSentence(
+    els.cardSentence,
+    current.sentence,
+    current.highlight,
+    current.vocab || null
+  );
   els.cardPhrase.textContent = current.phrase;
   els.cardMeaning.textContent = current.meaning;
   els.cardTranslation.textContent = current.translation;
@@ -349,6 +535,11 @@ function renderSettingsSheet() {
     btn.classList.toggle('is-active', Math.abs(btnRate - rate) < 0.02);
   }
 
+  els.toggleVocabHints.setAttribute(
+    'aria-checked',
+    String(state.prefs.showVocabHints !== false)
+  );
+
   if (deferredInstallPrompt) {
     els.btnInstallPwa.hidden = false;
   } else {
@@ -366,6 +557,7 @@ function commitDecision(outcome) {
   if (!session || session.index >= session.queue.length) return;
 
   isAnimatingOut = true;
+  closeVocabTooltip({ immediate: true });
   stopSpeaking();
 
   // Gentle haptic feedback on supported mobile devices
@@ -415,7 +607,7 @@ const SWIPE_VELOCITY_THRESHOLD = 0.52;
 function onCardPointerDown(e) {
   if (isAnimatingOut) return;
   if (e.button !== 0 && e.pointerType === 'mouse') return;
-  if (e.target.closest('#audio-btn')) return;
+  if (e.target.closest('#audio-btn') || e.target.closest('.vocab-word')) return;
 
   drag.active = true;
   drag.pointerId = e.pointerId;
@@ -437,6 +629,7 @@ function onCardPointerMove(e) {
     if (Math.hypot(dx, dy) < 8) return;
     if (Math.abs(dx) > Math.abs(dy) * 1.15) {
       drag.mode = 'swipe';
+      closeVocabTooltip();
       els.activeCard.classList.add('is-dragging');
       try {
         els.activeCard.setPointerCapture(e.pointerId);
@@ -445,6 +638,7 @@ function onCardPointerMove(e) {
       }
     } else {
       drag.mode = 'scroll';
+      closeVocabTooltip();
       return;
     }
   }
@@ -499,8 +693,15 @@ function onCardPointerEnd(e) {
     return;
   }
 
-  // Pure tap anywhere on the card toggles reveal
+  // Pure tap anywhere on the card toggles reveal (or dismisses open vocab tooltip first)
   if (mode === null && Math.abs(dx) < 8) {
+    if (activeVocabEl) {
+      closeVocabTooltip();
+      if (e.target.closest('#reveal-hint')) {
+        setCardRevealed(!isRevealed);
+      }
+      return;
+    }
     setCardRevealed(!isRevealed);
   }
 }
@@ -524,7 +725,69 @@ els.activeCard.addEventListener('pointercancel', onCardPointerCancel);
 
 els.audioBtn.addEventListener('click', (e) => {
   e.stopPropagation();
+  closeVocabTooltip();
   speakCurrentSentence();
+});
+
+// Delegated vocab word tap handlers (strictly isolated from card flip & swipe)
+els.cardSentence.addEventListener('pointerdown', (e) => {
+  const wordEl = e.target.closest('.vocab-word');
+  if (!wordEl) return;
+  e.stopPropagation();
+});
+
+els.cardSentence.addEventListener('click', (e) => {
+  const wordEl = e.target.closest('.vocab-word');
+  if (!wordEl) return;
+  e.stopPropagation();
+  e.preventDefault();
+  toggleVocabTooltip(wordEl);
+});
+
+els.cardSentence.addEventListener('keydown', (e) => {
+  const wordEl = e.target.closest('.vocab-word');
+  if (!wordEl) return;
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.stopPropagation();
+    e.preventDefault();
+    toggleVocabTooltip(wordEl);
+  }
+});
+
+els.vocabTooltip.addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+});
+
+els.vocabTooltip.addEventListener('click', (e) => {
+  e.stopPropagation();
+});
+
+// Close tooltip when tapping outside card, scrolling card body, or resizing viewport
+document.addEventListener('pointerdown', (e) => {
+  if (!activeVocabEl) return;
+  if (
+    e.target.closest('.vocab-word') ||
+    e.target.closest('#vocab-tooltip') ||
+    e.target.closest('#active-card')
+  ) {
+    return;
+  }
+  closeVocabTooltip();
+});
+
+const cardScrollInner = els.activeCard.querySelector('.card-scroll-inner');
+if (cardScrollInner) {
+  cardScrollInner.addEventListener(
+    'scroll',
+    () => {
+      if (activeVocabEl) closeVocabTooltip();
+    },
+    { passive: true }
+  );
+}
+
+window.addEventListener('resize', () => {
+  if (activeVocabEl) closeVocabTooltip();
 });
 
 els.btnStuck.addEventListener('click', () => commitDecision('stuck'));
@@ -544,8 +807,19 @@ document.addEventListener('keydown', (e) => {
   }
   if (els.studyView.hidden) return;
 
+  if (e.key === 'Escape' && activeVocabEl) {
+    e.preventDefault();
+    closeVocabTooltip();
+    return;
+  }
+
   if (e.key === ' ' || e.key === 'Enter') {
-    if (document.activeElement === els.audioBtn) return;
+    if (
+      document.activeElement === els.audioBtn ||
+      document.activeElement?.classList.contains('vocab-word')
+    ) {
+      return;
+    }
     e.preventDefault();
     setCardRevealed(!isRevealed);
   } else if (e.key === 'ArrowLeft') {
@@ -562,6 +836,7 @@ document.addEventListener('keydown', (e) => {
 
 // Settings Sheet
 function openSheet() {
+  closeVocabTooltip();
   renderSettingsSheet();
   els.sheetBackdrop.hidden = false;
   els.menuBtn.setAttribute('aria-expanded', 'true');
@@ -590,6 +865,15 @@ for (const btn of els.rateButtons) {
   });
 }
 
+els.toggleVocabHints.addEventListener('click', () => {
+  const nextVal = state.prefs.showVocabHints === false;
+  state.prefs.showVocabHints = nextVal;
+  saveState(state);
+  renderSettingsSheet();
+  refreshActiveSentence();
+  showToast(nextVal ? '已開啟難字底線提示' : '已關閉難字底線提示');
+});
+
 els.btnReset.addEventListener('click', () => {
   if (!els.btnReset.classList.contains('is-confirming')) {
     els.btnReset.classList.add('is-confirming');
@@ -604,8 +888,10 @@ els.btnReset.addEventListener('click', () => {
 
   clearTimeout(resetConfirmTimer);
   const preservedRate = state.prefs.speechRate;
+  const preservedVocabHints = state.prefs.showVocabHints;
   state = createEmptyState();
   state.prefs.speechRate = preservedRate;
+  state.prefs.showVocabHints = preservedVocabHints;
   ensureTodaySession(state, PHRASES, getLocalDateStr());
   saveState(state);
   closeSheet();
@@ -654,9 +940,14 @@ window.addEventListener('appinstalled', () => {
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {
-      // Service worker registration skipped on unsupported origins (e.g., file://)
-    });
+    navigator.serviceWorker
+      .register('./sw.js')
+      .then((reg) => {
+        reg.update().catch(() => {});
+      })
+      .catch(() => {
+        // Service worker registration skipped on unsupported origins (e.g., file://)
+      });
   });
 }
 

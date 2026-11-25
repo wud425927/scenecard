@@ -32,6 +32,7 @@ export function createEmptyState() {
     session: null,
     prefs: {
       speechRate: 0.96,
+      showVocabHints: true,
     },
   };
 }
@@ -53,6 +54,10 @@ export function loadState(storage = window.localStorage) {
           parsed.prefs && typeof parsed.prefs.speechRate === 'number'
             ? parsed.prefs.speechRate
             : 0.96,
+        showVocabHints:
+          parsed.prefs && typeof parsed.prefs.showVocabHints === 'boolean'
+            ? parsed.prefs.showVocabHints
+            : true,
       },
     };
   } catch {

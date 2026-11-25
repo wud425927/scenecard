@@ -259,6 +259,22 @@
         </div>
 
         <div class="sheet-section">
+          <div class="sheet-row">
+            <span class="sheet-label">難字底線提示</span>
+            <button
+              id="toggle-vocab-hints"
+              class="switch-btn"
+              type="button"
+              role="switch"
+              aria-checked="true"
+              aria-label="切換難字底線提示"
+            >
+              <span class="switch-thumb" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="sheet-section">
           <span class="sheet-label">安裝到手機桌面（支援離線）</span>
           <button id="btn-install-pwa" class="install-btn" type="button" hidden>
             立即安裝到桌面
@@ -274,6 +290,13 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Floating Vocab Peek Tooltip -->
+  <div id="vocab-tooltip" class="vocab-tooltip" role="tooltip" hidden>
+    <span id="vocab-tooltip-word" class="vocab-tooltip-word"></span>
+    <span id="vocab-tooltip-meaning" class="vocab-tooltip-meaning"></span>
+    <span class="vocab-tooltip-arrow" aria-hidden="true"></span>
   </div>
 
   <!-- Quiet Toast for subtle status feedback -->

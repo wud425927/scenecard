@@ -22,6 +22,10 @@ export const PHRASES = [
     meaning: '發出（嘆息、叫聲等）；忍不住吐出',
     translation: '隨著走廊上的腳步聲漸遠，她緩緩吐出一口顫抖的氣。',
     note: '比 make a sound 更有「憋著一口氣、終於洩出來」的畫面感，常搭配 breath、sigh、laugh。',
+    vocab: [
+      { word: 'shaky', meaning: '顫抖的、發虛的' },
+      { word: 'faded', meaning: '逐漸消失、變弱' },
+    ],
   },
   {
     id: 'n02',
@@ -32,6 +36,10 @@ export const PHRASES = [
     meaning: '如陰影般籠罩在……上方；居高臨下逼近',
     translation: '那名高大的陌生人居高臨下地罩在書桌前，擋住了房裡唯一的光源。',
     note: '自帶強烈的體型壓迫感與不安氛圍，遊戲描寫反派或威脅逼近時超愛用。',
+    vocab: [
+      { word: 'stranger', meaning: '陌生人' },
+      { word: 'blocking', meaning: '擋住、遮蔽' },
+    ],
   },
   {
     id: 'n03',
@@ -42,6 +50,10 @@ export const PHRASES = [
     meaning: '猛地竄出；迅雷不及掩耳地伸出',
     translation: '我還沒來得及拿鑰匙，她的手就猛地一探，從櫃檯上搶了過去。',
     note: '強調像飛鏢一樣「又快又突然」的動作，常用來寫手、眼神或人影瞬間竄出。',
+    vocab: [
+      { word: 'snatched', meaning: '一把搶走、猛抓' },
+      { word: 'counter', meaning: '櫃檯、檯面' },
+    ],
   },
   {
     id: 'n04',
@@ -52,6 +64,10 @@ export const PHRASES = [
     meaning: '交出；遞過去（常帶移交或被迫感）',
     translation: '他把公事包推過桌面，一聲不吭地把隨身碟交了出去。',
     note: '比單純的 give 更有「交出關鍵物品、轉移籌碼」的戲劇張力。',
+    vocab: [
+      { word: 'slid', meaning: '滑推過去（slide 過去式）' },
+      { word: 'briefcase', meaning: '公事包' },
+    ],
   },
   {
     id: 'n05',
@@ -62,6 +78,10 @@ export const PHRASES = [
     meaning: '抽身退開；掙脫並拉開距離',
     translation: '我伸手想搭她的肩，她卻抽身退開，盯著地板不說話。',
     note: '不只寫身體往後縮，也常暗喻情感上的防備、迴避或疏離。',
+    vocab: [
+      { word: 'reached', meaning: '伸手探向' },
+      { word: 'stared', meaning: '盯著看、凝視' },
+    ],
   },
   {
     id: 'n06',
@@ -72,6 +92,10 @@ export const PHRASES = [
     meaning: '身體前傾湊近',
     translation: '偵探往前湊近，壓低聲音，好讓吧台邊沒人聽見。',
     note: '視覺小說營造「曖昧試探」或「密談揭秘」張力的第一高頻動作。',
+    vocab: [
+      { word: 'detective', meaning: '偵探、警探' },
+      { word: 'lowering', meaning: '壓低、放低' },
+    ],
   },
   {
     id: 'n07',
@@ -82,6 +106,10 @@ export const PHRASES = [
     meaning: '整個人僵住；嚇得動彈不得',
     translation: '車頭燈照進巷子那一刻，他貼著磚牆整個人僵在原地。',
     note: '比 stop 更有「大腦瞬間當機、肌肉鎖死」的緊繃臨場感。',
+    vocab: [
+      { word: 'headlights', meaning: '車頭燈' },
+      { word: 'alley', meaning: '暗巷、小巷' },
+    ],
   },
   {
     id: 'n08',
@@ -92,6 +120,10 @@ export const PHRASES = [
     meaning: '回頭迅速瞥了一眼',
     translation: '她越過肩膀回頭瞄了一眼，確認沒人跟在我們後面。',
     note: 'glance 是快而輕的一瞥，搭配 over one\'s shoulder 是逃亡與警戒戲的標準鏡頭。',
+    vocab: [
+      { word: 'shoulder', meaning: '肩膀' },
+      { word: 'followed', meaning: '跟蹤、尾隨' },
+    ],
   },
   {
     id: 'n09',
@@ -102,6 +134,10 @@ export const PHRASES = [
     meaning: '聳肩一笑置之；裝作不在乎地打發掉',
     translation: '他扯出一抹歪笑，試圖把威脅當成耳邊風，但雙手卻在發抖。',
     note: '像把東西從肩頭輕鬆抖落一樣，很常用在「嘴硬強裝鎮定」的描寫。',
+    vocab: [
+      { word: 'crooked', meaning: '歪斜的、扭曲的' },
+      { word: 'trembling', meaning: '發抖的、顫抖的' },
+    ],
   },
   {
     id: 'n10',
@@ -112,6 +148,10 @@ export const PHRASES = [
     meaning: '往後退一步',
     translation: '認出面具底下是誰後，我本能地從門口往後退了一步。',
     note: '角色受到震驚、瞬間戒備或拉開安全距離時最直接的肢體反射。',
+    vocab: [
+      { word: 'instinctively', meaning: '本能地、下意識地' },
+      { word: 'doorway', meaning: '門口、門廊' },
+    ],
   },
   {
     id: 'n11',
@@ -122,6 +162,10 @@ export const PHRASES = [
     meaning: '伸手去摸／去拿（還沒抓到）',
     translation: '他的手指抽動了一下，不動聲色地伸手去摸大衣底下的手槍。',
     note: '跟 grab（一把抓住）不同，reach for 專門定格「伸手探向某物」那個千鈞一髮的瞬間。',
+    vocab: [
+      { word: 'twitched', meaning: '抽動、微微顫動' },
+      { word: 'subtly', meaning: '不動聲色地、巧妙地' },
+    ],
   },
   {
     id: 'n12',
@@ -132,6 +176,10 @@ export const PHRASES = [
     meaning: '猛然衝進；突然爆發出（大哭／大笑）',
     translation: '雙開門猛地被撞開，她淋得一身濕地衝進了房間。',
     note: '動作戲寫破門衝入，情緒戲也能寫 burst into tears / laughter（突然崩潰或大笑）。',
+    vocab: [
+      { word: 'flew', meaning: '猛然彈開（fly 過去式）' },
+      { word: 'soaked', meaning: '濕透的、全身淋濕' },
+    ],
   },
   {
     id: 'n13',
@@ -142,6 +190,10 @@ export const PHRASES = [
     meaning: '悄悄溜出去；（秘密）不小心說溜嘴',
     translation: '趁警衛在門口爭執時，我們從側門悄悄溜了出去。',
     note: '有「像滑出去般不發出一點聲響」的輕巧感，口語也指秘密不小心脫口而出。',
+    vocab: [
+      { word: 'guards', meaning: '警衛、守衛' },
+      { word: 'argued', meaning: '爭執、吵架' },
+    ],
   },
   {
     id: 'n14',
@@ -152,6 +204,10 @@ export const PHRASES = [
     meaning: '身體繃緊；突然警戒僵硬',
     translation: '我一提到她哥哥的名字，她下巴一緊，整對肩膀瞬間僵硬起來。',
     note: '細膩刻畫角色被戳中痛點、或直覺察覺不對勁時的微動作。',
+    vocab: [
+      { word: 'mentioned', meaning: '提到、提及' },
+      { word: 'jaw', meaning: '下巴、下顎' },
+    ],
   },
   {
     id: 'n15',
@@ -162,6 +218,10 @@ export const PHRASES = [
     meaning: '瞇起眼睛（懷疑、審視或起敵意）',
     translation: '房東瞇起雙眼，在閃爍的燈光下打量我那張偽造的證件。',
     note: '美劇與推理小說裡描寫「起疑心、暗藏戒備」最經典的眼神片語。',
+    vocab: [
+      { word: 'forged', meaning: '偽造的、假冒的' },
+      { word: 'flickering', meaning: '閃爍不定的、搖曳的' },
+    ],
   },
   {
     id: 'n16',
@@ -172,6 +232,9 @@ export const PHRASES = [
     meaning: '手忙腳亂地摸索、擺弄',
     translation: '我的手指凍到發僵，手忙腳亂地捅了整整十秒才對準鎖孔。',
     note: '臨場感極強！把緊張、手抖、越急越對不準的狼狽感一次說透。',
+    vocab: [
+      { word: 'agonizing', meaning: '令人煎熬的、難熬的' },
+    ],
   },
   {
     id: 'n17',
@@ -182,6 +245,9 @@ export const PHRASES = [
     meaning: '聲音漸漸弱下去；話說到一半消音',
     translation: '「我以為你說他——」看到那張空椅子，她的聲音漸漸弱了下去。',
     note: '寫角色突然發現異狀、欲言又止時幾乎必用的旁白神片語。',
+    vocab: [
+      { word: 'spotted', meaning: '發現、一眼看見' },
+    ],
   },
   {
     id: 'n18',
@@ -192,6 +258,10 @@ export const PHRASES = [
     meaning: '粗暴打斷（某人的話）；切斷（退路／訊號）',
     translation: '他剛想解釋，老大卻俐落地一揮手，直接打斷了他的話。',
     note: '對話中表示毫不客氣地截斷發言，動作場景也能指切斷聯絡或封死退路。',
+    vocab: [
+      { word: 'sharp', meaning: '俐落的、乾脆急促的' },
+      { word: 'wave', meaning: '揮手、擺手' },
+    ],
   },
   {
     id: 'n19',
@@ -202,6 +272,10 @@ export const PHRASES = [
     meaning: '退讓；服軟退縮',
     translation: '就算保全已經逼近了，他們倆誰也不肯先讓步。',
     note: '衝突對峙必備片語，強調在氣勢或立場上「縮回去、認輸」。',
+    vocab: [
+      { word: 'willing', meaning: '願意、肯' },
+      { word: 'security', meaning: '保全人員、警衛' },
+    ],
   },
   {
     id: 'n20',
@@ -212,6 +286,10 @@ export const PHRASES = [
     meaning: '氣沖沖地甩門而出',
     translation: '她把合約重重摔在桌上，我還沒來得及道歉，她就怒氣沖沖地衝了出去。',
     note: '把 storm 當動詞用，像暴風雨般捲出房間，比 walk out angrily 精練十倍。',
+    vocab: [
+      { word: 'slammed', meaning: '重重摔下、猛力拍打' },
+      { word: 'contract', meaning: '合約、契約' },
+    ],
   },
   {
     id: 'n21',
@@ -222,6 +300,10 @@ export const PHRASES = [
     meaning: '吸引目光；突然映入眼簾',
     translation: '地板縫隙下閃過的一點金屬反光，立刻吸引了我的注意。',
     note: '探索解謎與推理遊戲裡，主角發現隱藏線索時出場率超高的句型。',
+    vocab: [
+      { word: 'glinting', meaning: '閃著微光、反光' },
+      { word: 'floorboards', meaning: '木地板、地板條' },
+    ],
   },
   {
     id: 'n22',
@@ -232,6 +314,10 @@ export const PHRASES = [
     meaning: '擺手打發；揮手婉拒',
     translation: '我想扶他起來，但他擺擺手示意不用，自己抹掉了嘴角的血。',
     note: '單純一個揮手動作，就傳達出「別管我、我沒事、少囉嗦」的硬派氣場。',
+    vocab: [
+      { word: 'offered', meaning: '主動提出、伸手幫忙' },
+      { word: 'wiped', meaning: '擦掉、抹去' },
+    ],
   },
   {
     id: 'n23',
@@ -242,6 +328,10 @@ export const PHRASES = [
     meaning: '把人死死按住；逼問出確切答案',
     translation: '兩個壯漢試圖把他按倒在地，他卻硬是把門踹上了。',
     note: '打鬥戲是「壓制到動彈不得」，談判戲則可引申為「逼對方給個準話」。',
+    vocab: [
+      { word: 'managed', meaning: '設法做到、硬是辦到' },
+      { word: 'shut', meaning: '關上、緊閉' },
+    ],
   },
   {
     id: 'n24',
@@ -252,6 +342,10 @@ export const PHRASES = [
     meaning: '硬生生忍住（眼淚、怒火或哽咽）',
     translation: '她咬緊下唇，在眾人面前拚命把眼淚嚥回去。',
     note: '字面有「卡在喉嚨硬吞下去」的感覺，情緒隱忍度直接拉滿。',
+    vocab: [
+      { word: 'desperately', meaning: '拚命地、急切地' },
+      { word: 'crew', meaning: '團隊成員、一夥人' },
+    ],
   },
   {
     id: 'n25',
@@ -262,6 +356,9 @@ export const PHRASES = [
     meaning: '來回焦躁地踱步',
     translation: '他在安全屋裡焦急地來回踱步，每隔幾秒就看一次錶。',
     note: '描寫角色等待消息、內心煎熬坐立難安時的標準電影運鏡。',
+    vocab: [
+      { word: 'safehouse', meaning: '安全屋、藏身處' },
+    ],
   },
 
   // =========================================================
@@ -276,6 +373,9 @@ export const PHRASES = [
     meaning: '這對你來說值多少？（看你肯開什麼價）',
     translation: '「我知道帳本在哪。這消息對你來說值多少錢？」',
     note: '手握籌碼、反客為主時的經典台詞，潛台詞就是「拿出讓我滿意的交換條件」。',
+    vocab: [
+      { word: 'ledger', meaning: '帳本、秘密帳冊' },
+    ],
   },
   {
     id: 'd02',
@@ -286,6 +386,9 @@ export const PHRASES = [
     meaning: '非……不可，否則免談',
     translation: '「分紅我要五成——就這樣，不然免談。你慢慢想，我無所謂。」',
     note: '亮出最終底牌的霸氣結構，常見 all or nothing、half or nothing、my way or nothing。',
+    vocab: [
+      { word: 'cut', meaning: '分紅、抽成、分得的份額' },
+    ],
   },
   {
     id: 'd03',
@@ -296,6 +399,10 @@ export const PHRASES = [
     meaning: '那就照……辦吧；好，就這麼定了',
     translation: '「你真要來硬的？行啊，那就來硬的。」',
     note: '把對方選的方案放前面加 it is，常帶「好啊，這可是你選的」的爽快或冷笑。',
+    vocab: [
+      { word: 'hard', meaning: '強硬的、吃苦頭的' },
+      { word: 'Fine', meaning: '行啊、好吧（帶妥協或冷淡）' },
+    ],
   },
   {
     id: 'd04',
@@ -306,6 +413,10 @@ export const PHRASES = [
     meaning: '乖乖付錢；還債；付出代價',
     translation: '「你的好運到頭了，老兄。該乖乖吐錢出來了。」',
     note: '比 pay 多了催討與強迫結清的火藥味，欠債、賭輸或討公道都會聽到。',
+    vocab: [
+      { word: 'luck', meaning: '運氣、好運' },
+      { word: 'pal', meaning: '老兄、夥計（常帶挑釁）' },
+    ],
   },
   {
     id: 'd05',
@@ -316,6 +427,9 @@ export const PHRASES = [
     meaning: '說服我改變主意',
     translation: '「給我一個好理由，讓我現在不直接走人。說啊，試著說服我。」',
     note: '雙方角力時超常用，帶著「我看你還能掰出什麼好籌碼」的居高臨下感。',
+    vocab: [
+      { word: 'reason', meaning: '理由、說服力' },
+    ],
   },
   {
     id: 'd06',
@@ -326,6 +440,9 @@ export const PHRASES = [
     meaning: '沒那麼多時間可以耗（快點！）',
     translation: '「有話快說。我們可沒那麼多美國時間在這邊乾耗。」',
     note: '比 hurry up 更自然、更有不耐煩與情勢緊迫的壓迫感（也常說 don\'t have all day）。',
+    vocab: [
+      { word: 'Spit', meaning: '吐出來（Spit it out = 快說）' },
+    ],
   },
   {
     id: 'd07',
@@ -336,6 +453,9 @@ export const PHRASES = [
     meaning: '少廢話；別裝蒜了',
     translation: '「少廢話了，馬可斯。我們都心知肚明你不是來道歉的。」',
     note: '美劇撕破臉必備台詞，直接戳穿對方虛偽客套（溫和版可用 cut the act）。',
+    vocab: [
+      { word: 'apologize', meaning: '道歉、賠罪' },
+    ],
   },
   {
     id: 'd08',
@@ -346,6 +466,9 @@ export const PHRASES = [
     meaning: '先聽我把話說完',
     translation: '「在你扣下扳機之前，好歹先聽我把話講完三十秒！」',
     note: '被誤會或要提出瘋狂計畫時必喊，比 listen to me 多了「先別急著否定」的語氣。',
+    vocab: [
+      { word: 'trigger', meaning: '扳機' },
+    ],
   },
   {
     id: 'd09',
@@ -356,6 +479,10 @@ export const PHRASES = [
     meaning: '門都沒有；想都別想',
     translation: '「你要我去相信那個栽贓我的人？門都沒有。」',
     note: '拒絕得乾脆俐落、斬釘截鐵，比 no way 更帶點冷靜不屑的氣場。',
+    vocab: [
+      { word: 'trust', meaning: '信任、相信' },
+      { word: 'framed', meaning: '栽贓陷害、嫁禍' },
+    ],
   },
   {
     id: 'd10',
@@ -366,6 +493,10 @@ export const PHRASES = [
     meaning: '扯平了；兩不相欠',
     translation: '「你今晚救我一命，我幫你把案底清乾淨。咱們就算扯平了。」',
     note: '江湖恩怨或交易收尾超常用，俐落表達「誰也不欠誰」。',
+    vocab: [
+      { word: 'skin', meaning: '性命、小命（save one\'s skin）' },
+      { word: 'record', meaning: '前科紀錄、案底' },
+    ],
   },
   {
     id: 'd11',
@@ -376,6 +507,10 @@ export const PHRASES = [
     meaning: '失控；局面一發不可收拾',
     translation: '「這本來該是一場安靜的劫案，現在卻徹底失控了。」',
     note: '畫面感像東西從掌心滑脫抓不住，計畫走偏時角色最常脫口而出。',
+    vocab: [
+      { word: 'supposed', meaning: '原本應該、照理說' },
+      { word: 'heist', meaning: '搶劫案、劫盜行動' },
+    ],
   },
   {
     id: 'd12',
@@ -386,6 +521,9 @@ export const PHRASES = [
     meaning: '下定決心；快點做決定',
     translation: '「直升機五分鐘後起飛。快點決定——你到底要不要跟？」',
     note: '劇情分歧點、逼對方立刻表態時的經典催促台詞。',
+    vocab: [
+      { word: 'chopper', meaning: '直升機（美式口語）' },
+    ],
   },
   {
     id: 'd13',
@@ -396,6 +534,10 @@ export const PHRASES = [
     meaning: '你在虛張聲勢；少唬人了',
     translation: '「檔案上也有你的名字，你才不敢燒掉。你在唬我罷了。」',
     note: '出自撲克牌術語「唬牌」，心理博弈與對峙戲碼裡出場率超高。',
+    vocab: [
+      { word: 'dare', meaning: '敢、膽敢' },
+      { word: 'burn', meaning: '燒毀、銷毀' },
+    ],
   },
   {
     id: 'd14',
@@ -406,6 +548,9 @@ export const PHRASES = [
     meaning: '小聲點；壓低音量',
     translation: '「小聲一點！你想讓整個警局都知道我們在這兒嗎？」',
     note: '潛行任務或秘密碰頭時最道地的提醒，比 be quiet 更合乎緊張語境。',
+    vocab: [
+      { word: 'precinct', meaning: '警局、警察分局' },
+    ],
   },
   {
     id: 'd15',
@@ -416,6 +561,10 @@ export const PHRASES = [
     meaning: '成交；那就一言為定',
     translation: '「撤銷對我妹的控告，咱們這筆交易就成交。」',
     note: '談判拍板定案的標準句，反問確認則常說 Do we have a deal?（成交嗎？）。',
+    vocab: [
+      { word: 'Drop', meaning: '撤銷、放棄追究' },
+      { word: 'charges', meaning: '控告、罪名指控' },
+    ],
   },
   {
     id: 'd16',
@@ -426,6 +575,10 @@ export const PHRASES = [
     meaning: '有什麼貓膩？附帶條件是什麼？',
     translation: '「安全脫身還先付一萬美金？行吧，說說看有什麼附帶條件？」',
     note: '聽到好到不真實的條件時，角色秒回的防備反應——天下沒有白吃的午餐。',
+    vocab: [
+      { word: 'getaway', meaning: '脫身、逃逸' },
+      { word: 'grand', meaning: '一千美元（口語）' },
+    ],
   },
   {
     id: 'd17',
@@ -436,6 +589,10 @@ export const PHRASES = [
     meaning: '逃過一劫；擺脫嫌疑或責任',
     translation: '「別以為證人失蹤了，你就沒事脫身了。」',
     note: '像魚從釣鉤上掙脫，常搭配否定句警告對方「別以為這件事就這樣算了」。',
+    vocab: [
+      { word: 'witness', meaning: '證人、目擊者' },
+      { word: 'vanished', meaning: '憑空消失、不見蹤影' },
+    ],
   },
   {
     id: 'd18',
@@ -446,6 +603,9 @@ export const PHRASES = [
     meaning: '得寸進尺；別太貪心試探底線',
     translation: '「我已經多寬限你一天了。別得寸進尺。」',
     note: '極具壓迫感的冷靜警告，意思是「再多要求一步，我就要翻臉了」。',
+    vocab: [
+      { word: 'extra', meaning: '額外的、多寬限的' },
+    ],
   },
   {
     id: 'd19',
@@ -456,6 +616,9 @@ export const PHRASES = [
     meaning: '快招了吧；把秘密吐出來',
     translation: '「從坐下來你就一直在冒汗。少瞞了，快招吧——到底發生什麼事？」',
     note: '像把杯子裡的水全倒出來，審問嫌犯或逼隊友說實話時超傳神。',
+    vocab: [
+      { word: 'sweating', meaning: '冒汗、緊張流汗' },
+    ],
   },
   {
     id: 'd20',
@@ -466,6 +629,9 @@ export const PHRASES = [
     meaning: '算我一份！',
     translation: '「如果我們終於要端掉那個黑幫組織，算我一份。」',
     note: '組隊出任務時最熱血俐落的回應，相反則是 count me out（別算我）。',
+    vocab: [
+      { word: 'syndicate', meaning: '犯罪集團、黑幫組織' },
+    ],
   },
   {
     id: 'd21',
@@ -476,6 +642,10 @@ export const PHRASES = [
     meaning: '很合理；說得也是；行吧',
     translation: '「你想先看到現金再交出鑰匙？很合理，沒毛病。」',
     note: '美劇萬用神回應！表示「雖然不見得開心，但你說的有道理、我可以接受」。',
+    vocab: [
+      { word: 'cash', meaning: '現金、現鈔' },
+      { word: 'handing', meaning: '交出、遞交' },
+    ],
   },
   {
     id: 'd22',
@@ -486,6 +656,9 @@ export const PHRASES = [
     meaning: '絕對不可能；免談（沒得商量）',
     translation: '「把遺物交給他們？絕無可能。去想別的辦法。」',
     note: '比 impossible 更強調「這根本不在討論範圍內，直接一票否決」。',
+    vocab: [
+      { word: 'relic', meaning: '遺物、古老聖物' },
+    ],
   },
   {
     id: 'd23',
@@ -496,6 +669,10 @@ export const PHRASES = [
     meaning: '爭取一點時間；拖延時間',
     translation: '「去大門拖住警衛——我只要兩分鐘幫大家爭取點時間。」',
     note: '潛入、駭客破解、緊急撤退場景裡的王牌台詞，字面就是「換取時間」。',
+    vocab: [
+      { word: 'guards', meaning: '警衛、守衛' },
+      { word: 'gate', meaning: '大門、閘門' },
+    ],
   },
   {
     id: 'd24',
@@ -506,6 +683,10 @@ export const PHRASES = [
     meaning: '如履薄冰；處境危險（快踩到紅線）',
     translation: '「經過昨晚那一齣，你在隊長眼裡已經是在踩紅線了。」',
     note: '像走在快裂開的薄冰上，差一步就會掉下去，常用來警告對方別再出包。',
+    vocab: [
+      { word: 'stunt', meaning: '魯莽行徑、出格舉動' },
+      { word: 'captain', meaning: '隊長、船長' },
+    ],
   },
   {
     id: 'd25',
@@ -516,5 +697,9 @@ export const PHRASES = [
     meaning: '愛要不要；要就拿去，不要拉倒',
     translation: '「兩百塊加上載你出城。要就拿去，不要拉倒。」',
     note: '終極通牒金句，宣示「這就是最終條件，完全沒有討價還價的空間」。',
+    vocab: [
+      { word: 'bucks', meaning: '塊錢、美元（口語）' },
+      { word: 'ride', meaning: '順風車、載一程' },
+    ],
   },
 ];
