@@ -144,12 +144,12 @@
                   <p id="card-meaning" class="phrase-meaning"></p>
                 </div>
 
-                <div class="translation-block">
+                <div id="card-translation-block" class="translation-block">
                   <span class="field-label">白話翻譯</span>
                   <p id="card-translation" class="sentence-translation"></p>
                 </div>
 
-                <div class="note-block">
+                <div id="card-note-block" class="note-block">
                   <span class="field-label">語感備註</span>
                   <p id="card-note" class="phrase-note"></p>
                 </div>
@@ -246,6 +246,7 @@
           <div class="mini-track">
             <div id="explored-fill" class="mini-fill"></div>
           </div>
+          <p id="deck-breakdown" class="sheet-subhint" hidden></p>
         </div>
 
         <div class="sheet-section">
@@ -275,6 +276,36 @@
         </div>
 
         <div class="sheet-section">
+          <span class="sheet-label">本機自訂題庫（完全離線）</span>
+          <div class="sheet-row">
+            <span class="sheet-sublabel">抽牌來源</span>
+            <div class="segmented" role="group" aria-label="抽牌來源">
+              <button type="button" class="seg-btn" data-source="all">全部</button>
+              <button type="button" class="seg-btn" data-source="custom">僅自訂</button>
+              <button type="button" class="seg-btn" data-source="builtin">僅內建</button>
+            </div>
+          </div>
+          <input id="import-deck-input" type="file" accept=".json,application/json" hidden />
+          <div class="sheet-btn-group">
+            <button id="btn-import-deck" class="sheet-action-btn" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M12 15V3M12 3L7 8M12 3L17 8M4 17V19C4 20.1046 4.89543 21 6 21H18C19.1046 21 20 20.1046 20 19V17"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span>匯入自訂題庫（JSON）</span>
+            </button>
+            <button id="btn-clear-deck" class="sheet-danger-btn" type="button" hidden>
+              清除已匯入題庫
+            </button>
+          </div>
+        </div>
+
+        <div class="sheet-section">
           <span class="sheet-label">安裝到手機桌面（支援離線）</span>
           <button id="btn-install-pwa" class="install-btn" type="button" hidden>
             立即安裝到桌面
@@ -286,7 +317,16 @@
         </div>
 
         <div class="sheet-section sheet-section--footer">
-          <button id="btn-reset" class="reset-btn" type="button">重置學習進度</button>
+          <input id="restore-progress-input" type="file" accept=".json,application/json" hidden />
+          <div class="sheet-footer-actions">
+            <div class="backup-actions">
+              <button id="btn-export-progress" class="ghost-link-btn" type="button">匯出進度</button>
+              <span class="footer-sep" aria-hidden="true">·</span>
+              <button id="btn-restore-progress" class="ghost-link-btn" type="button">還原進度</button>
+            </div>
+            <button id="btn-reset" class="reset-btn" type="button">重置學習進度</button>
+          </div>
+          <p id="app-version" class="app-version">v2.2</p>
         </div>
       </div>
     </div>

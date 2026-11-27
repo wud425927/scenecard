@@ -1,17 +1,27 @@
 import { PHRASES, CATEGORIES } from './data/phrases.js';
 import {
+  buildActiveDeck,
+  buildBackupPayload,
   createEmptyState,
   ensureTodaySession,
   getExploredCount,
   getLocalDateStr,
+  loadCustomDeck,
+  loadExampleHistory,
   loadState,
+  mergeCustomCards,
+  parseBackupPayload,
+  pickExampleForCard,
   previewIntervalDays,
+  rebuildSessionForDeckSource,
   reviewCurrentCard,
+  saveCustomDeck,
+  saveExampleHistory,
   saveState,
   startExtraBatch,
+  syncSessionWithDeck,
+  validateImportedDeck,
 } from './srs.js';
-
-const PHRASE_MAP = new Map(PHRASES.map((p) => [p.id, p]));
 
 // DOM References
 const els = {
@@ -35,7 +45,9 @@ const els = {
   cardBack: document.getElementById('card-back'),
   cardPhrase: document.getElementById('card-phrase'),
   cardMeaning: document.getElementById('card-meaning'),
+  cardTranslationBlock: document.getElementById('card-translation-block'),
   cardTranslation: document.getElementById('card-translation'),
+  cardNoteBlock: document.getElementById('card-note-block'),
   cardNote: document.getElementById('card-note'),
 
   btnStuck: document.getElementById('btn-stuck'),
@@ -55,10 +67,21 @@ const els = {
   sheetClose: document.getElementById('sheet-close'),
   exploredLabel: document.getElementById('explored-label'),
   exploredFill: document.getElementById('explored-fill'),
+  deckBreakdown: document.getElementById('deck-breakdown'),
   rateButtons: Array.from(document.querySelectorAll('.seg-btn[data-rate]')),
+  sourceButtons: Array.from(document.querySelectorAll('.seg-btn[data-source]')),
   toggleVocabHints: document.getElementById('toggle-vocab-hints'),
+
+  importDeckInput: document.getElementById('import-deck-input'),
+  btnImportDeck: document.getElementById('btn-import-deck'),
+  btnClearDeck: document.getElementById('btn-clear-deck'),
+
   btnInstallPwa: document.getElementById('btn-install-pwa'),
   installGuide: document.getElementById('install-guide'),
+
+  restoreProgressInput: document.getElementById('restore-progress-input'),
+  btnExportProgress: document.getElementById('btn-export-progress'),
+  btnRestoreProgress: document.getElementById('btn-restore-progress'),
   btnReset: document.getElementById('btn-reset'),
 
   vocabTooltip: document.getElementById('vocab-tooltip'),
@@ -70,14 +93,38 @@ const els = {
 
 // App Runtime State
 let state = loadState();
+let customDeck = loadCustomDeck();
+let allPhrases = [];
+let phraseMap = new Map();
+let activeDeckIds = new Set();
+let exampleHistory = loadExampleHistory();
+
+// Locks the chosen example for the active card and previews the next slot consistently
+let preparedExamples = new Map();
+let activeExample = null;
+
 let isRevealed = false;
 let isAnimatingOut = false;
 let deferredInstallPrompt = null;
 let resetConfirmTimer = null;
+let clearDeckConfirmTimer = null;
 let toastTimer = null;
 let selectedVoice = null;
 let activeVocabEl = null;
 let tooltipCloseTimer = null;
+
+function rebuildDeckIndex() {
+  if (state.prefs.deckSource === 'custom' && customDeck.length === 0) {
+    state.prefs.deckSource = 'all';
+  }
+  allPhrases = buildActiveDeck(PHRASES, customDeck, state.prefs.deckSource);
+  phraseMap = new Map(allPhrases.map((p) => [p.id, p]));
+  activeDeckIds = new Set(allPhrases.map((p) => p.id));
+  preparedExamples.clear();
+  activeExample = null;
+}
+
+rebuildDeckIndex();
 
 // =========================================================
 // Utilities
@@ -89,7 +136,33 @@ function showToast(message) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     els.toast.hidden = true;
-  }, 2000);
+  }, 2400);
+}
+
+function getCategoryLabel(category) {
+  if (CATEGORIES[category]) return CATEGORIES[category].label;
+  if (!category || category === 'custom') return '自訂片語';
+  return category;
+}
+
+function getSlotKey(session, slotIdx, cardId) {
+  return `${session.date}:${session.isExtra ? 'x' : 'd'}:${session.completedRoundsToday || 0}:${slotIdx}:${cardId}`;
+}
+
+function getPreparedExample(session, slotIdx, card, { recordHistory = false } = {}) {
+  const key = getSlotKey(session, slotIdx, card.id);
+  let picked = preparedExamples.get(key);
+  if (!picked) {
+    picked = pickExampleForCard(card, exampleHistory);
+    preparedExamples.set(key, picked);
+  }
+  if (recordHistory && card.examples.length > 1) {
+    if (exampleHistory[card.id] !== picked.index) {
+      exampleHistory[card.id] = picked.index;
+      saveExampleHistory(exampleHistory);
+    }
+  }
+  return picked.example;
 }
 
 function isAsciiLetter(ch) {
@@ -161,6 +234,8 @@ function appendTextWithVocab(container, text, vocabList) {
 
 function renderHighlightedSentence(container, sentence, highlight, vocabList = null) {
   container.textContent = '';
+  if (!sentence) return;
+
   if (!highlight) {
     appendTextWithVocab(container, sentence, vocabList);
     return;
@@ -275,16 +350,13 @@ function toggleVocabTooltip(wordEl) {
 }
 
 function refreshActiveSentence() {
-  const session = state.session;
-  if (!session || session.index >= session.queue.length) return;
-  const current = PHRASE_MAP.get(session.queue[session.index]);
-  if (!current) return;
+  if (!activeExample) return;
   closeVocabTooltip({ immediate: true });
   renderHighlightedSentence(
     els.cardSentence,
-    current.sentence,
-    current.highlight,
-    current.vocab || null
+    activeExample.en,
+    activeExample.match,
+    activeExample.vocab || null
   );
 }
 
@@ -338,10 +410,7 @@ function speakCurrentSentence() {
     return;
   }
 
-  const session = state.session;
-  if (!session || session.index >= session.queue.length) return;
-  const phrase = PHRASE_MAP.get(session.queue[session.index]);
-  if (!phrase) return;
+  if (!activeExample || !activeExample.en) return;
 
   // Toggle off if already speaking
   if (els.audioBtn.classList.contains('is-speaking') && window.speechSynthesis.speaking) {
@@ -353,7 +422,7 @@ function speakCurrentSentence() {
     window.speechSynthesis.cancel();
   }
 
-  const utterance = new SpeechSynthesisUtterance(phrase.sentence);
+  const utterance = new SpeechSynthesisUtterance(activeExample.en);
   utterance.lang = 'en-US';
   utterance.rate = state.prefs.speechRate || 0.96;
   utterance.pitch = 1;
@@ -390,12 +459,32 @@ if ('speechSynthesis' in window) {
 // Rendering
 // =========================================================
 
+let scrollCheckTimer = null;
+
+function updateCardScrollable() {
+  const scroller = els.activeCard.querySelector('.card-scroll-inner');
+  if (!isRevealed || !scroller) {
+    els.activeCard.classList.remove('can-scroll');
+    return;
+  }
+  const overflows = scroller.scrollHeight > scroller.clientHeight + 2;
+  els.activeCard.classList.toggle('can-scroll', overflows);
+}
+
 function setCardRevealed(revealed) {
   closeVocabTooltip();
+  clearTimeout(scrollCheckTimer);
   isRevealed = revealed;
   els.activeCard.classList.toggle('is-revealed', revealed);
   els.activeCard.setAttribute('aria-expanded', String(revealed));
   els.cardBack.setAttribute('aria-hidden', String(!revealed));
+
+  if (!revealed) {
+    els.activeCard.classList.remove('can-scroll');
+  } else {
+    requestAnimationFrame(updateCardScrollable);
+    scrollCheckTimer = setTimeout(updateCardScrollable, 300);
+  }
 }
 
 function resetCardTransform() {
@@ -438,6 +527,7 @@ function renderActiveCard({ animateEntrance = false } = {}) {
   renderProgress();
 
   if (isDone) {
+    activeExample = null;
     stopSpeaking();
     els.studyView.hidden = true;
     els.completeView.hidden = false;
@@ -449,23 +539,48 @@ function renderActiveCard({ animateEntrance = false } = {}) {
   els.studyView.hidden = false;
 
   const currentId = session.queue[session.index];
-  const current = PHRASE_MAP.get(currentId);
-  const nextId = session.queue[session.index + 1];
-  const next = nextId ? PHRASE_MAP.get(nextId) : null;
+  const current = phraseMap.get(currentId);
+  if (!current) {
+    syncSessionWithDeck(state, allPhrases, getLocalDateStr());
+    saveState(state);
+    renderActiveCard({ animateEntrance: false });
+    return;
+  }
 
-  // Populate active card
-  const cat = CATEGORIES[current.category] || CATEGORIES.narration;
-  els.cardCategory.textContent = cat.label;
+  const nextId = session.queue[session.index + 1];
+  const next = nextId ? phraseMap.get(nextId) : null;
+
+  // Lock in the chosen example for this card (avoids back-to-back repeats)
+  activeExample = getPreparedExample(session, session.index, current, {
+    recordHistory: true,
+  });
+
+  // Populate active card (front highlight, vocab underlines, back translation & audio all sync to activeExample)
+  els.cardCategory.textContent = getCategoryLabel(current.category);
   renderHighlightedSentence(
     els.cardSentence,
-    current.sentence,
-    current.highlight,
-    current.vocab || null
+    activeExample.en,
+    activeExample.match,
+    activeExample.vocab || null
   );
   els.cardPhrase.textContent = current.phrase;
   els.cardMeaning.textContent = current.meaning;
-  els.cardTranslation.textContent = current.translation;
-  els.cardNote.textContent = current.note;
+
+  if (activeExample.zh) {
+    els.cardTranslationBlock.hidden = false;
+    els.cardTranslation.textContent = activeExample.zh;
+  } else {
+    els.cardTranslationBlock.hidden = true;
+    els.cardTranslation.textContent = '';
+  }
+
+  if (current.note) {
+    els.cardNoteBlock.hidden = false;
+    els.cardNote.textContent = current.note;
+  } else {
+    els.cardNoteBlock.hidden = true;
+    els.cardNote.textContent = '';
+  }
 
   // Subtle interval preview on bottom buttons
   const nextDays = previewIntervalDays(state, current.id, 'known');
@@ -477,11 +592,13 @@ function renderActiveCard({ animateEntrance = false } = {}) {
   if (scroller) scroller.scrollTop = 0;
   setCardRevealed(false);
 
-  // Populate ghost card behind active card
+  // Populate ghost card behind active card with the pre-picked next example
   if (next) {
-    const nextCat = CATEGORIES[next.category] || CATEGORIES.narration;
-    els.ghostCategory.textContent = nextCat.label;
-    renderHighlightedSentence(els.ghostSentence, next.sentence, next.highlight);
+    const nextExample = getPreparedExample(session, session.index + 1, next, {
+      recordHistory: false,
+    });
+    els.ghostCategory.textContent = getCategoryLabel(next.category);
+    renderHighlightedSentence(els.ghostSentence, nextExample.en, nextExample.match, null);
     els.nextCardGhost.classList.remove('is-empty');
   } else {
     els.ghostCategory.textContent = '';
@@ -523,11 +640,47 @@ function renderCompleteView() {
   els.statStuck.textContent = String(session.stats?.stuck || 0);
 }
 
+function resetClearDeckConfirm() {
+  clearTimeout(clearDeckConfirmTimer);
+  els.btnClearDeck.classList.remove('is-confirming');
+  els.btnClearDeck.textContent = `清除已匯入題庫（${customDeck.length} 張）`;
+}
+
 function renderSettingsSheet() {
-  const explored = getExploredCount(state);
-  const total = PHRASES.length;
+  const source = state.prefs.deckSource || 'all';
+  const explored = getExploredCount(state, activeDeckIds);
+  const total = allPhrases.length;
   els.exploredLabel.textContent = `${explored} / ${total} 組`;
-  els.exploredFill.style.width = `${Math.round((explored / total) * 100)}%`;
+  els.exploredFill.style.width = total > 0 ? `${Math.round((explored / total) * 100)}%` : '0%';
+
+  if (source === 'custom') {
+    els.deckBreakdown.hidden = false;
+    els.deckBreakdown.textContent = `目前範圍：僅自訂（共 ${customDeck.length} 組）`;
+  } else if (source === 'builtin') {
+    els.deckBreakdown.hidden = false;
+    els.deckBreakdown.textContent =
+      customDeck.length > 0
+        ? `目前範圍：僅內建（另存自訂 ${customDeck.length} 組）`
+        : `目前範圍：僅內建（共 ${PHRASES.length} 組）`;
+  } else if (customDeck.length > 0) {
+    const netAdded = Math.max(0, total - PHRASES.length);
+    els.deckBreakdown.hidden = false;
+    els.deckBreakdown.textContent =
+      netAdded === customDeck.length
+        ? `目前範圍：全部（內建 ${PHRASES.length} ＋ 自訂 ${customDeck.length}）`
+        : `目前範圍：全部（共 ${total} 組，含自訂 ${customDeck.length} 組）`;
+  } else {
+    els.deckBreakdown.hidden = true;
+  }
+
+  if (customDeck.length > 0) {
+    els.btnClearDeck.hidden = false;
+    if (!els.btnClearDeck.classList.contains('is-confirming')) {
+      els.btnClearDeck.textContent = `清除已匯入題庫（${customDeck.length} 張）`;
+    }
+  } else {
+    els.btnClearDeck.hidden = true;
+  }
 
   const rate = state.prefs.speechRate || 0.96;
   for (const btn of els.rateButtons) {
@@ -535,16 +688,18 @@ function renderSettingsSheet() {
     btn.classList.toggle('is-active', Math.abs(btnRate - rate) < 0.02);
   }
 
+  for (const btn of els.sourceButtons) {
+    const btnSource = btn.dataset.source;
+    btn.classList.toggle('is-active', btnSource === source);
+    btn.classList.toggle('is-empty-source', btnSource === 'custom' && customDeck.length === 0);
+  }
+
   els.toggleVocabHints.setAttribute(
     'aria-checked',
     String(state.prefs.showVocabHints !== false)
   );
 
-  if (deferredInstallPrompt) {
-    els.btnInstallPwa.hidden = false;
-  } else {
-    els.btnInstallPwa.hidden = true;
-  }
+  els.btnInstallPwa.hidden = !deferredInstallPrompt;
 }
 
 // =========================================================
@@ -588,66 +743,45 @@ function commitDecision(outcome) {
 }
 
 // =========================================================
-// Pointer Swipe + Tap Physics (Mobile Touch & Mouse)
+// Dedicated Touch (Mobile) + Mouse (Desktop) Swipe Engine
 // =========================================================
 
 const drag = {
   active: false,
-  pointerId: null,
+  source: null, // 'touch' | 'mouse'
+  touchId: null,
   startX: 0,
   startY: 0,
   lastX: 0,
-  startTime: 0,
+  lastTime: 0,
+  prevX: 0,
+  prevTime: 0,
+  maxMove: 0,
   mode: null, // 'swipe' | 'scroll' | null
 };
 
-const SWIPE_DISTANCE_THRESHOLD = 88;
-const SWIPE_VELOCITY_THRESHOLD = 0.52;
+let lastTouchEndTime = 0;
 
-function onCardPointerDown(e) {
-  if (isAnimatingOut) return;
-  if (e.button !== 0 && e.pointerType === 'mouse') return;
-  if (e.target.closest('#audio-btn') || e.target.closest('.vocab-word')) return;
+const AXIS_LOCK_DISTANCE = 5;
+const TAP_MAX_MOVE = 10;
+const SWIPE_COMMIT_DISTANCE = 75;
+const SWIPE_VELOCITY_THRESHOLD = 0.42;
 
-  drag.active = true;
-  drag.pointerId = e.pointerId;
-  drag.startX = e.clientX;
-  drag.startY = e.clientY;
-  drag.lastX = e.clientX;
-  drag.startTime = performance.now();
-  drag.mode = null;
+function isInteractiveTarget(target) {
+  return Boolean(target && target.closest('#audio-btn, .vocab-word, button'));
 }
 
-function onCardPointerMove(e) {
-  if (!drag.active || e.pointerId !== drag.pointerId) return;
+function lockHorizontalSwipe() {
+  if (drag.mode === 'swipe') return;
+  drag.mode = 'swipe';
+  closeVocabTooltip();
+  els.activeCard.classList.add('is-dragging');
+}
 
-  const dx = e.clientX - drag.startX;
-  const dy = e.clientY - drag.startY;
-  drag.lastX = e.clientX;
-
-  if (!drag.mode) {
-    if (Math.hypot(dx, dy) < 8) return;
-    if (Math.abs(dx) > Math.abs(dy) * 1.15) {
-      drag.mode = 'swipe';
-      closeVocabTooltip();
-      els.activeCard.classList.add('is-dragging');
-      try {
-        els.activeCard.setPointerCapture(e.pointerId);
-      } catch {
-        // Ignore if capture is unsupported
-      }
-    } else {
-      drag.mode = 'scroll';
-      closeVocabTooltip();
-      return;
-    }
-  }
-
-  if (drag.mode !== 'swipe') return;
-
-  const progress = Math.min(1, Math.abs(dx) / 110);
-  const rotate = dx * 0.045;
-  els.activeCard.style.transform = `translate3d(${dx}px, ${Math.abs(dx) * 0.04}px, 0) rotate(${rotate}deg)`;
+function updateSwipeVisuals(dx) {
+  const progress = Math.min(1, Math.abs(dx) / 95);
+  const rotate = dx * 0.042;
+  els.activeCard.style.transform = `translate3d(${dx}px, 0, 0) rotate(${rotate}deg)`;
 
   if (dx > 0) {
     els.stampKnown.style.opacity = String(progress);
@@ -659,7 +793,7 @@ function onCardPointerMove(e) {
     els.activeCard.style.borderColor = `rgba(239, 111, 108, ${0.1 + progress * 0.45})`;
   }
 
-  // Smoothly scale up ghost card underneath
+  // Smoothly bring ghost card up underneath
   const ghostScale = 0.945 + progress * 0.055;
   const ghostY = 14 - progress * 14;
   const ghostOpacity = 0.42 + progress * 0.48;
@@ -667,25 +801,73 @@ function onCardPointerMove(e) {
   els.nextCardGhost.style.opacity = String(ghostOpacity);
 }
 
-function onCardPointerEnd(e) {
-  if (!drag.active || e.pointerId !== drag.pointerId) return;
+function beginDrag(source, clientX, clientY, touchId = null) {
+  const now = performance.now();
+  drag.active = true;
+  drag.source = source;
+  drag.touchId = touchId;
+  drag.startX = clientX;
+  drag.startY = clientY;
+  drag.lastX = clientX;
+  drag.lastTime = now;
+  drag.prevX = clientX;
+  drag.prevTime = now;
+  drag.maxMove = 0;
+  drag.mode = null;
+}
 
-  const dx = e.clientX - drag.startX;
-  const elapsed = Math.max(1, performance.now() - drag.startTime);
-  const velocity = dx / elapsed;
+function handleDragMove(clientX, clientY, { canScrollVertically = false } = {}) {
+  const dx = clientX - drag.startX;
+  const dy = clientY - drag.startY;
+  const dist = Math.hypot(dx, dy);
+  if (dist > drag.maxMove) drag.maxMove = dist;
+
+  if (!drag.mode) {
+    if (dist < AXIS_LOCK_DISTANCE) return;
+    if (Math.abs(dx) >= Math.abs(dy) * 0.7 || !canScrollVertically) {
+      lockHorizontalSwipe();
+    } else {
+      drag.mode = 'scroll';
+      closeVocabTooltip();
+      return;
+    }
+  }
+
+  if (drag.mode !== 'swipe') return;
+
+  const now = performance.now();
+  if (now - drag.lastTime >= 16) {
+    drag.prevX = drag.lastX;
+    drag.prevTime = drag.lastTime;
+    drag.lastX = clientX;
+    drag.lastTime = now;
+  }
+
+  updateSwipeVisuals(dx);
+}
+
+function finishDrag(clientX, clientY, endTarget) {
+  const dx = clientX - drag.startX;
+  const dy = clientY - drag.startY;
+  const maxMove = Math.max(drag.maxMove, Math.hypot(dx, dy));
+  const dt = Math.max(1, performance.now() - drag.prevTime);
+  const recentVelocity = (clientX - drag.prevX) / dt;
   const mode = drag.mode;
 
   drag.active = false;
-  drag.pointerId = null;
+  drag.source = null;
+  drag.touchId = null;
   drag.mode = null;
+  drag.maxMove = 0;
 
   if (mode === 'swipe') {
     els.activeCard.classList.remove('is-dragging');
-    const shouldCommit =
-      Math.abs(dx) >= SWIPE_DISTANCE_THRESHOLD ||
-      (Math.abs(velocity) >= SWIPE_VELOCITY_THRESHOLD && Math.abs(dx) >= 32);
+    const isFlick =
+      Math.abs(recentVelocity) >= SWIPE_VELOCITY_THRESHOLD &&
+      Math.abs(dx) >= 28 &&
+      Math.sign(recentVelocity) === Math.sign(dx);
 
-    if (shouldCommit) {
+    if (Math.abs(dx) >= SWIPE_COMMIT_DISTANCE || isFlick) {
       commitDecision(dx > 0 ? 'known' : 'stuck');
     } else {
       resetCardTransform();
@@ -693,11 +875,11 @@ function onCardPointerEnd(e) {
     return;
   }
 
-  // Pure tap anywhere on the card toggles reveal (or dismisses open vocab tooltip first)
-  if (mode === null && Math.abs(dx) < 8) {
+  // Strictly prevent accidental card flip whenever movement exceeded 10px
+  if (mode === null && maxMove < TAP_MAX_MOVE) {
     if (activeVocabEl) {
       closeVocabTooltip();
-      if (e.target.closest('#reveal-hint')) {
+      if (endTarget && endTarget.closest && endTarget.closest('#reveal-hint')) {
         setCardRevealed(!isRevealed);
       }
       return;
@@ -706,22 +888,98 @@ function onCardPointerEnd(e) {
   }
 }
 
-function onCardPointerCancel(e) {
-  if (!drag.active || e.pointerId !== drag.pointerId) return;
+function cancelActiveDrag() {
+  if (!drag.active) return;
   drag.active = false;
-  drag.pointerId = null;
+  drag.source = null;
+  drag.touchId = null;
   drag.mode = null;
+  drag.maxMove = 0;
   resetCardTransform();
 }
 
+function findTrackedTouch(touchList, touchId) {
+  for (let i = 0; i < touchList.length; i++) {
+    if (touchList[i].identifier === touchId) return touchList[i];
+  }
+  return null;
+}
+
+// --- Mobile Touch Handlers ---
+function onCardTouchStart(e) {
+  if (isAnimatingOut) return;
+  if (e.touches.length !== 1) return;
+  if (isInteractiveTarget(e.target)) return;
+
+  const touch = e.touches[0];
+  beginDrag('touch', touch.clientX, touch.clientY, touch.identifier);
+}
+
+function onCardTouchMove(e) {
+  if (!drag.active || drag.source !== 'touch') return;
+  const touch = findTrackedTouch(e.touches, drag.touchId) || e.touches[0];
+  if (!touch) return;
+
+  const canScroll = els.activeCard.classList.contains('can-scroll');
+  handleDragMove(touch.clientX, touch.clientY, { canScrollVertically: canScroll });
+
+  // Prevent browser takeover on EVERY frame once horizontal swipe is locked
+  if (drag.mode === 'swipe' && e.cancelable) {
+    e.preventDefault();
+  }
+}
+
+function onCardTouchEnd(e) {
+  lastTouchEndTime = performance.now();
+  if (!drag.active || drag.source !== 'touch') return;
+  const touch =
+    findTrackedTouch(e.changedTouches, drag.touchId) || e.changedTouches[0];
+  if (!touch) {
+    cancelActiveDrag();
+    return;
+  }
+
+  finishDrag(touch.clientX, touch.clientY, e.target);
+}
+
+function onCardTouchCancel() {
+  lastTouchEndTime = performance.now();
+  if (!drag.active || drag.source !== 'touch') return;
+  cancelActiveDrag();
+}
+
+// --- Desktop Mouse Handlers ---
+function onCardMouseDown(e) {
+  if (isAnimatingOut) return;
+  if (performance.now() - lastTouchEndTime < 700) return; // Ignore synthetic mouse events after touch
+  if (e.button !== 0) return;
+  if (isInteractiveTarget(e.target)) return;
+
+  beginDrag('mouse', e.clientX, e.clientY, null);
+}
+
+function onWindowMouseMove(e) {
+  if (!drag.active || drag.source !== 'mouse') return;
+  handleDragMove(e.clientX, e.clientY, { canScrollVertically: false });
+}
+
+function onWindowMouseUp(e) {
+  if (!drag.active || drag.source !== 'mouse') return;
+  finishDrag(e.clientX, e.clientY, e.target);
+}
+
 // =========================================================
-// Event Listeners
+// Event Listeners — Card & Tooltip
 // =========================================================
 
-els.activeCard.addEventListener('pointerdown', onCardPointerDown);
-els.activeCard.addEventListener('pointermove', onCardPointerMove);
-els.activeCard.addEventListener('pointerup', onCardPointerEnd);
-els.activeCard.addEventListener('pointercancel', onCardPointerCancel);
+els.activeCard.addEventListener('touchstart', onCardTouchStart, { passive: true });
+els.activeCard.addEventListener('touchmove', onCardTouchMove, { passive: false });
+els.activeCard.addEventListener('touchend', onCardTouchEnd, { passive: true });
+els.activeCard.addEventListener('touchcancel', onCardTouchCancel, { passive: true });
+
+els.activeCard.addEventListener('mousedown', onCardMouseDown);
+window.addEventListener('mousemove', onWindowMouseMove);
+window.addEventListener('mouseup', onWindowMouseUp);
 
 els.audioBtn.addEventListener('click', (e) => {
   e.stopPropagation();
@@ -730,11 +988,14 @@ els.audioBtn.addEventListener('click', (e) => {
 });
 
 // Delegated vocab word tap handlers (strictly isolated from card flip & swipe)
-els.cardSentence.addEventListener('pointerdown', (e) => {
+function stopVocabEvent(e) {
   const wordEl = e.target.closest('.vocab-word');
   if (!wordEl) return;
   e.stopPropagation();
-});
+}
+
+els.cardSentence.addEventListener('touchstart', stopVocabEvent, { passive: true });
+els.cardSentence.addEventListener('mousedown', stopVocabEvent);
 
 els.cardSentence.addEventListener('click', (e) => {
   const wordEl = e.target.closest('.vocab-word');
@@ -754,16 +1015,12 @@ els.cardSentence.addEventListener('keydown', (e) => {
   }
 });
 
-els.vocabTooltip.addEventListener('pointerdown', (e) => {
-  e.stopPropagation();
-});
-
-els.vocabTooltip.addEventListener('click', (e) => {
-  e.stopPropagation();
-});
+els.vocabTooltip.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+els.vocabTooltip.addEventListener('mousedown', (e) => e.stopPropagation());
+els.vocabTooltip.addEventListener('click', (e) => e.stopPropagation());
 
 // Close tooltip when tapping outside card, scrolling card body, or resizing viewport
-document.addEventListener('pointerdown', (e) => {
+function onOutsideStart(e) {
   if (!activeVocabEl) return;
   if (
     e.target.closest('.vocab-word') ||
@@ -773,7 +1030,10 @@ document.addEventListener('pointerdown', (e) => {
     return;
   }
   closeVocabTooltip();
-});
+}
+
+document.addEventListener('touchstart', onOutsideStart, { passive: true });
+document.addEventListener('mousedown', onOutsideStart);
 
 const cardScrollInner = els.activeCard.querySelector('.card-scroll-inner');
 if (cardScrollInner) {
@@ -788,14 +1048,16 @@ if (cardScrollInner) {
 
 window.addEventListener('resize', () => {
   if (activeVocabEl) closeVocabTooltip();
+  updateCardScrollable();
 });
 
 els.btnStuck.addEventListener('click', () => commitDecision('stuck'));
 els.btnKnown.addEventListener('click', () => commitDecision('known'));
 
 els.btnExtra.addEventListener('click', () => {
-  startExtraBatch(state, PHRASES, getLocalDateStr());
+  startExtraBatch(state, allPhrases, getLocalDateStr());
   saveState(state);
+  preparedExamples.clear();
   renderActiveCard({ animateEntrance: true });
 });
 
@@ -834,20 +1096,25 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Settings Sheet
+// =========================================================
+// Settings Sheet — Preferences, Import/Clear Deck & Backup
+// =========================================================
+
 function openSheet() {
   closeVocabTooltip();
+  els.btnReset.classList.remove('is-confirming');
+  els.btnReset.textContent = '重置學習進度';
+  resetClearDeckConfirm();
   renderSettingsSheet();
   els.sheetBackdrop.hidden = false;
   els.menuBtn.setAttribute('aria-expanded', 'true');
-  els.btnReset.classList.remove('is-confirming');
-  els.btnReset.textContent = '重置學習進度';
 }
 
 function closeSheet() {
   els.sheetBackdrop.hidden = true;
   els.menuBtn.setAttribute('aria-expanded', 'false');
   clearTimeout(resetConfirmTimer);
+  clearTimeout(clearDeckConfirmTimer);
 }
 
 els.menuBtn.addEventListener('click', openSheet);
@@ -874,6 +1141,194 @@ els.toggleVocabHints.addEventListener('click', () => {
   showToast(nextVal ? '已開啟難字底線提示' : '已關閉難字底線提示');
 });
 
+// Deck Source Switcher (全部 / 僅自訂 / 僅內建)
+const DECK_SOURCE_LABELS = {
+  all: '全部題庫',
+  custom: '僅自訂題庫',
+  builtin: '僅內建題庫',
+};
+
+for (const btn of els.sourceButtons) {
+  btn.addEventListener('click', () => {
+    const nextSource = btn.dataset.source;
+    if (nextSource === 'custom' && customDeck.length === 0) {
+      showToast('請先匯入 JSON 題庫');
+      return;
+    }
+    if (nextSource === state.prefs.deckSource) return;
+
+    state.prefs.deckSource = nextSource;
+    rebuildDeckIndex();
+    rebuildSessionForDeckSource(state, allPhrases, getLocalDateStr());
+    saveState(state);
+
+    renderSettingsSheet();
+    renderActiveCard({ animateEntrance: true });
+    showToast(`已切換：${DECK_SOURCE_LABELS[nextSource] || '全部題庫'}`);
+  });
+}
+
+// Local JSON Deck Import
+els.btnImportDeck.addEventListener('click', () => {
+  els.importDeckInput.click();
+});
+
+els.importDeckInput.addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  try {
+    const rawText = await file.text();
+    let parsed;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      showToast('檔案不是有效的 JSON 格式');
+      return;
+    }
+
+    const validation = validateImportedDeck(parsed);
+    if (!validation.ok) {
+      showToast(`匯入失敗：${validation.error}`);
+      return;
+    }
+
+    const { merged, addedCount, updatedCount } = mergeCustomCards(
+      customDeck,
+      validation.cards
+    );
+
+    const saveRes = saveCustomDeck(merged);
+    if (!saveRes.ok) {
+      showToast(
+        saveRes.quotaExceeded
+          ? '瀏覽器儲存空間不足，無法匯入此題庫'
+          : '無法儲存匯入的題庫'
+      );
+      return;
+    }
+
+    customDeck = merged;
+    rebuildDeckIndex();
+
+    const today = getLocalDateStr();
+    syncSessionWithDeck(state, allPhrases, today);
+    saveState(state);
+
+    resetClearDeckConfirm();
+    renderSettingsSheet();
+    renderActiveCard({ animateEntrance: false });
+
+    if (updatedCount > 0 && addedCount === 0) {
+      showToast(`已更新 ${updatedCount} 張卡片（保留進度）`);
+    } else if (updatedCount > 0) {
+      showToast(`已匯入 ${validation.cards.length} 張卡片（更新 ${updatedCount} 張）`);
+    } else {
+      showToast(`已匯入 ${validation.cards.length} 張卡片`);
+    }
+  } catch {
+    showToast('讀取檔案失敗，請再試一次');
+  } finally {
+    e.target.value = '';
+  }
+});
+
+// Clear Custom Imported Deck (2-step confirm, preserves built-in 50 cards' progress)
+els.btnClearDeck.addEventListener('click', () => {
+  if (!els.btnClearDeck.classList.contains('is-confirming')) {
+    els.btnClearDeck.classList.add('is-confirming');
+    els.btnClearDeck.textContent = '再點一次確認清除自訂題庫';
+    clearTimeout(clearDeckConfirmTimer);
+    clearDeckConfirmTimer = setTimeout(resetClearDeckConfirm, 3500);
+    return;
+  }
+
+  clearTimeout(clearDeckConfirmTimer);
+  customDeck = [];
+  saveCustomDeck([]);
+  rebuildDeckIndex();
+
+  const today = getLocalDateStr();
+  syncSessionWithDeck(state, allPhrases, today);
+  saveState(state);
+
+  els.btnClearDeck.classList.remove('is-confirming');
+  renderSettingsSheet();
+  renderActiveCard({ animateEntrance: false });
+  showToast('已清除自訂題庫（內建進度已保留）');
+});
+
+// Export Progress JSON Backup
+els.btnExportProgress.addEventListener('click', () => {
+  try {
+    const payload = buildBackupPayload(state, customDeck);
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `scenecard-backup-${getLocalDateStr()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('已匯出學習進度備份');
+  } catch {
+    showToast('匯出失敗，請再試一次');
+  }
+});
+
+// Restore Progress JSON Backup
+els.btnRestoreProgress.addEventListener('click', () => {
+  els.restoreProgressInput.click();
+});
+
+els.restoreProgressInput.addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  try {
+    const rawText = await file.text();
+    let parsed;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      showToast('備份檔不是有效的 JSON 格式');
+      return;
+    }
+
+    const result = parseBackupPayload(parsed);
+    if (!result.ok) {
+      showToast(`還原失敗：${result.error}`);
+      return;
+    }
+
+    if (result.customDeck && result.customDeck.length > 0) {
+      const saveRes = saveCustomDeck(result.customDeck);
+      if (saveRes.ok) {
+        customDeck = result.customDeck;
+      }
+    }
+
+    state = result.state;
+    rebuildDeckIndex();
+    const today = getLocalDateStr();
+    ensureTodaySession(state, allPhrases, today);
+    syncSessionWithDeck(state, allPhrases, today);
+    saveState(state);
+
+    preparedExamples.clear();
+    renderSettingsSheet();
+    renderActiveCard({ animateEntrance: true });
+    showToast(`已還原 ${result.cardCount} 筆學習進度`);
+  } catch {
+    showToast('讀取備份檔失敗，請再試一次');
+  } finally {
+    e.target.value = '';
+  }
+});
+
+// Reset SRS Progress (2-step confirm)
 els.btnReset.addEventListener('click', () => {
   if (!els.btnReset.classList.contains('is-confirming')) {
     els.btnReset.classList.add('is-confirming');
@@ -889,11 +1344,15 @@ els.btnReset.addEventListener('click', () => {
   clearTimeout(resetConfirmTimer);
   const preservedRate = state.prefs.speechRate;
   const preservedVocabHints = state.prefs.showVocabHints;
+  const preservedDeckSource = state.prefs.deckSource;
   state = createEmptyState();
   state.prefs.speechRate = preservedRate;
   state.prefs.showVocabHints = preservedVocabHints;
-  ensureTodaySession(state, PHRASES, getLocalDateStr());
+  state.prefs.deckSource = preservedDeckSource;
+  rebuildDeckIndex();
+  ensureTodaySession(state, allPhrases, getLocalDateStr());
   saveState(state);
+  preparedExamples.clear();
   closeSheet();
   renderActiveCard({ animateEntrance: true });
   showToast('已重置學習進度');
@@ -904,8 +1363,9 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     const today = getLocalDateStr();
     if (!state.session || state.session.date !== today) {
-      ensureTodaySession(state, PHRASES, today);
+      ensureTodaySession(state, allPhrases, today);
       saveState(state);
+      preparedExamples.clear();
       renderActiveCard({ animateEntrance: true });
     }
   }
@@ -939,6 +1399,16 @@ window.addEventListener('appinstalled', () => {
 });
 
 if ('serviceWorker' in navigator) {
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let hasReloadedForUpdate = false;
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController && !hasReloadedForUpdate) {
+      hasReloadedForUpdate = true;
+      window.location.reload();
+    }
+  });
+
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('./sw.js')
@@ -955,6 +1425,6 @@ if ('serviceWorker' in navigator) {
 // Boot
 // =========================================================
 
-ensureTodaySession(state, PHRASES, getLocalDateStr());
+ensureTodaySession(state, allPhrases, getLocalDateStr());
 saveState(state);
 renderActiveCard({ animateEntrance: false });
