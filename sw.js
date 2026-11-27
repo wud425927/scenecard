@@ -1,4 +1,4 @@
-const CACHE_NAME = 'scenecard-pwa-v5';
+const CACHE_NAME = 'scenecard-pwa-v6';
 
 const APP_ASSETS = [
   './',

@@ -64,6 +64,8 @@ const els = {
   btnExtra: document.getElementById('btn-extra'),
 
   sheetBackdrop: document.getElementById('sheet-backdrop'),
+  sheetPanel: document.querySelector('.sheet-panel'),
+  sheetBody: document.querySelector('.sheet-body'),
   sheetClose: document.getElementById('sheet-close'),
   exploredLabel: document.getElementById('explored-label'),
   exploredFill: document.getElementById('explored-fill'),
@@ -1100,28 +1102,177 @@ document.addEventListener('keydown', (e) => {
 // Settings Sheet — Preferences, Import/Clear Deck & Backup
 // =========================================================
 
+let sheetCloseTimer = null;
+let isSheetClosing = false;
+
+const sheetDrag = {
+  active: false,
+  dragging: false,
+  startX: 0,
+  startY: 0,
+  lastY: 0,
+  lastTime: 0,
+  prevY: 0,
+  prevTime: 0,
+  dy: 0,
+  startedAtTop: false,
+  startedOnHeader: false,
+};
+
+const SHEET_DISMISS_DISTANCE = 80;
+const SHEET_DISMISS_VELOCITY = 0.45;
+
+function resetSheetVisualState() {
+  clearTimeout(sheetCloseTimer);
+  isSheetClosing = false;
+  sheetDrag.active = false;
+  sheetDrag.dragging = false;
+  sheetDrag.dy = 0;
+  els.sheetPanel.classList.remove('is-dragging', 'is-closing');
+  els.sheetBackdrop.classList.remove('is-closing');
+  els.sheetPanel.style.transform = '';
+  els.sheetBackdrop.style.opacity = '';
+}
+
 function openSheet() {
   closeVocabTooltip();
+  resetSheetVisualState();
   els.btnReset.classList.remove('is-confirming');
   els.btnReset.textContent = '重置學習進度';
   resetClearDeckConfirm();
   renderSettingsSheet();
   els.sheetBackdrop.hidden = false;
+  if (els.sheetBody) els.sheetBody.scrollTop = 0;
   els.menuBtn.setAttribute('aria-expanded', 'true');
 }
 
-function closeSheet() {
-  els.sheetBackdrop.hidden = true;
-  els.menuBtn.setAttribute('aria-expanded', 'false');
+function closeSheet({ animated = false } = {}) {
   clearTimeout(resetConfirmTimer);
   clearTimeout(clearDeckConfirmTimer);
+  els.menuBtn.setAttribute('aria-expanded', 'false');
+
+  if (!animated || els.sheetBackdrop.hidden) {
+    resetSheetVisualState();
+    els.sheetBackdrop.hidden = true;
+    return;
+  }
+
+  if (isSheetClosing) return;
+  isSheetClosing = true;
+  els.sheetPanel.classList.remove('is-dragging');
+  els.sheetPanel.style.transform = '';
+  els.sheetBackdrop.style.opacity = '';
+  els.sheetPanel.classList.add('is-closing');
+  els.sheetBackdrop.classList.add('is-closing');
+
+  clearTimeout(sheetCloseTimer);
+  sheetCloseTimer = setTimeout(() => {
+    els.sheetBackdrop.hidden = true;
+    resetSheetVisualState();
+  }, 210);
+}
+
+function onSheetTouchStart(e) {
+  if (els.sheetBackdrop.hidden || isSheetClosing) return;
+  if (e.touches.length !== 1) return;
+
+  const touch = e.touches[0];
+  const now = performance.now();
+  sheetDrag.active = true;
+  sheetDrag.dragging = false;
+  sheetDrag.startX = touch.clientX;
+  sheetDrag.startY = touch.clientY;
+  sheetDrag.lastY = touch.clientY;
+  sheetDrag.lastTime = now;
+  sheetDrag.prevY = touch.clientY;
+  sheetDrag.prevTime = now;
+  sheetDrag.dy = 0;
+  sheetDrag.startedOnHeader = Boolean(
+    e.target && e.target.closest('.sheet-handle, .sheet-header')
+  );
+  sheetDrag.startedAtTop = !els.sheetBody || els.sheetBody.scrollTop <= 0;
+}
+
+function onSheetTouchMove(e) {
+  if (!sheetDrag.active || e.touches.length !== 1) return;
+
+  const touch = e.touches[0];
+  const dx = touch.clientX - sheetDrag.startX;
+  const dy = touch.clientY - sheetDrag.startY;
+
+  if (!sheetDrag.dragging) {
+    // Yield cleanly to inner scroll if body isn't at top or user swipes up/horizontally
+    const atTop = !els.sheetBody || els.sheetBody.scrollTop <= 0;
+    if (!sheetDrag.startedOnHeader && (!sheetDrag.startedAtTop || !atTop)) {
+      sheetDrag.active = false;
+      return;
+    }
+    if (dy < -6 || (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2)) {
+      sheetDrag.active = false;
+      return;
+    }
+    if (dy > 6 && dy >= Math.abs(dx)) {
+      sheetDrag.dragging = true;
+      els.sheetPanel.classList.add('is-dragging');
+    } else {
+      return;
+    }
+  }
+
+  if (e.cancelable) {
+    e.preventDefault();
+  }
+
+  const offsetY = Math.max(0, dy);
+  sheetDrag.dy = offsetY;
+
+  const now = performance.now();
+  if (now - sheetDrag.lastTime >= 16) {
+    sheetDrag.prevY = sheetDrag.lastY;
+    sheetDrag.prevTime = sheetDrag.lastTime;
+    sheetDrag.lastY = touch.clientY;
+    sheetDrag.lastTime = now;
+  }
+
+  els.sheetPanel.style.transform = `translate3d(0, ${offsetY}px, 0)`;
+  els.sheetBackdrop.style.opacity = String(Math.max(0.35, 1 - offsetY / 320));
+}
+
+function onSheetTouchEnd(isCancel = false) {
+  if (!sheetDrag.active) return;
+
+  const wasDragging = sheetDrag.dragging;
+  const finalDy = sheetDrag.dy;
+  const dt = Math.max(1, performance.now() - sheetDrag.prevTime);
+  const velocityY = (sheetDrag.lastY - sheetDrag.prevY) / dt;
+
+  sheetDrag.active = false;
+  sheetDrag.dragging = false;
+  sheetDrag.dy = 0;
+
+  if (!wasDragging) return;
+
+  els.sheetPanel.classList.remove('is-dragging');
+  const isFastFlick = velocityY >= SHEET_DISMISS_VELOCITY && finalDy >= 28;
+
+  if (!isCancel && (finalDy >= SHEET_DISMISS_DISTANCE || isFastFlick)) {
+    closeSheet({ animated: true });
+  } else {
+    els.sheetPanel.style.transform = '';
+    els.sheetBackdrop.style.opacity = '';
+  }
 }
 
 els.menuBtn.addEventListener('click', openSheet);
-els.sheetClose.addEventListener('click', closeSheet);
+els.sheetClose.addEventListener('click', () => closeSheet({ animated: true }));
 els.sheetBackdrop.addEventListener('click', (e) => {
-  if (e.target === els.sheetBackdrop) closeSheet();
+  if (e.target === els.sheetBackdrop) closeSheet({ animated: true });
 });
+
+els.sheetPanel.addEventListener('touchstart', onSheetTouchStart, { passive: true });
+els.sheetPanel.addEventListener('touchmove', onSheetTouchMove, { passive: false });
+els.sheetPanel.addEventListener('touchend', () => onSheetTouchEnd(false), { passive: true });
+els.sheetPanel.addEventListener('touchcancel', () => onSheetTouchEnd(true), { passive: true });
 
 for (const btn of els.rateButtons) {
   btn.addEventListener('click', () => {
